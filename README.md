@@ -1,3 +1,3 @@
-# DotaU-sorter
+# DotaU-balance
 
-Team sorter for inhouse Dota lobbies
+Team balancer for inhouse Dota lobbies
