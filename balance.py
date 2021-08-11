@@ -22,7 +22,58 @@ def splitTeams(lst):
             yield in_, [first] + out
 
 def initPlayerList():
+    """
+    TODO: Find some way to input the list of players, possibly through DotaU bot or just a GUI.
+    """
     return [None]*10
+
+def basic_score(perm):
+    """
+    This can be used on partial permuatations for pruning
+    """
+    pen = 0
+    if len(perm) <= 5:
+        return 10. - sum((i + 1 not in perm[i].pos) for i in range(len(perm)))
+    else:
+        radiant, dire = perm[:5], perm[5:]
+        r_pen = sum((i + 1 not in radiant[i].pos) for i in range(5))
+        d_pen = sum((i + 1 not in dire[i].pos) for i in range(len(perm)-5))
+        return 10. - (r_pen + d_pen)
+
+def score(perm):
+    """
+    For scoring full permutations
+    """
+    assert(len(perm) == 10)
+
+    radiant, dire = perm[:5], perm[5:]
+
+    # number of players in incorect position
+    r_pen = sum((i + 1 not in radiant[i].pos) for i in range(5))
+    d_pen = sum((i + 1 not in dire[i].pos) for i in range(5))
+
+    if 10. - ((r_pen + d_pen) * 0.9) < score:
+        continue
+
+    # same as above, but weighted for number of positions selected and tier of player
+    r_weighted_pen = sum((i + 1 not in radiant[i].pos) * len(radiant[i].pos) * (5 - radiant[i].tier) for i in range(5))
+    d_weighted_pen = sum((i + 1 not in dire[i].pos) * len(dire[i].pos) * (5 - dire[i].tier) for i in range(5))
+
+    # sum of tiers per team
+    r_score = sum(player.tier for player in radiant)
+    d_score = sum(player.tier for player in dire)
+    bal_score = abs(r_score - d_score) / 4.
+
+    # difference in lane tiers
+    top_var = abs(radiant[2].tier + radiant[3].tier - dire[0].tier - dire[4].tier)
+    mid_var = abs(radiant[1].tier - dire[1].tier)
+    bot_var = abs(radiant[0].tier + radiant[4].tier - dire[2].tier - dire[3].tier)
+
+    lane_score = max(max(top_var, mid_var * 2), bot_var) / 4.
+
+    # some magic numbers here to determine the "balance" of the teams
+    return 10. - bal_score - lane_score - ((r_pen + d_pen) * 0.9) - ((r_weighted_pen + d_weighted_pen) * 0.01)
+
 
 def balance(player_list):
     """
@@ -34,41 +85,18 @@ def balance(player_list):
     not possible, will give priority to those who selected more positions.
     """
     if len(player_list) != 10:
+        print('Requires list of 10 Players')
         return
 
     radiant_best, dire_best = [], []
     score = 0
 
-    for perm in itt.permutations(player_list, 10):
-        # split permutation into teams
-        radiant, dire = perm[:5], perm[5:]
+    for perm in itt.permutations(player_list):
 
-        # number of players in incorect position
-        r_pen = sum((i + 1 not in radiant[i].pos) for i in range(5))
-        d_pen = sum((i + 1 not in dire[i].pos) for i in range(5))
-
-        if 10. - ((r_pen + d_pen) * 0.9) < score:
+        if basic_score(perm) < score:
             continue
 
-        # same as above, but weighted for number of positions selected
-        r_weighted_pen = sum((i + 1 not in radiant[i].pos) * len(radiant[i].pos) for i in range(5))
-        d_weighted_pen = sum((i + 1 not in dire[i].pos) * len(radiant[i].pos) for i in range(5))
-
-        # sum of tiers per team
-        r_score = sum(player.tier for player in radiant)
-        d_score = sum(player.tier for player in dire)
-
-        # difference in lane tiers
-        top_var = abs(radiant[2].tier + radiant[3].tier - dire[0].tier - dire[4].tier)
-        mid_var = abs(radiant[1].tier - dire[1].tier)
-        bot_var = abs(radiant[0].tier + radiant[4].tier - dire[2].tier - dire[3].tier)
-
-        lane_score = (top_var + (mid_var * 2) + bot_var) / 4.
-
-        # some magic numbers here to determine the "balance" of the teams ! TODO: I'm not using r_score - d_score here??
-        perm_score = 10. - lane_score - ((r_pen + d_pen) * 0.9) - ((r_weighted_pen + d_weighted_pen) * 0.01)
-
-        if perm_score > score:
+        if score(perm) > score:
             radiant_best = list(player.name for player in radiant)
             dire_best = list(player.name for player in dire)
             score = perm_score
@@ -107,5 +135,6 @@ if __name__ == '__main__':
         Player("j", [4, 5], 3),
     ]
 
-    # print(balance(test1))
+    print(balance(test1))
     print(balance(test2))
+
