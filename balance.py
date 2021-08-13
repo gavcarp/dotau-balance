@@ -5,29 +5,13 @@ DotaU Lobby Balancer
 from player import Player
 import itertools as itt
 
-def splitTeams(lst):
-    """
-    Returns all possible 5 player team combinations of lst
-    Requires: len(lst) = 10
-    """
-    if len(lst) != 10:
-        return
-    else:
-        first, rest = lst[0], lst[1:]
-        # combinations that contain the first Player
-        for in_, out in splitTeams(rest, 5 - 1):
-            yield [first] + in_, out
-        # combinations that do not contain the first Player
-        for in_, out in splitTeams(rest, 5):
-            yield in_, [first] + out
-
 def initPlayerList():
     """
     TODO: Find some way to input the list of players, possibly through DotaU bot or just a GUI.
     """
     return [None]*10
 
-def basic_score(perm):
+def basicScore(perm):
     """
     This can be used on partial permuatations for pruning
     """
@@ -40,7 +24,7 @@ def basic_score(perm):
         d_pen = sum((i + 1 not in dire[i].pos) for i in range(len(perm)-5))
         return 10. - (r_pen + d_pen)
 
-def score(perm):
+def fullScore(perm):
     """
     For scoring full permutations
     """
@@ -51,9 +35,6 @@ def score(perm):
     # number of players in incorect position
     r_pen = sum((i + 1 not in radiant[i].pos) for i in range(5))
     d_pen = sum((i + 1 not in dire[i].pos) for i in range(5))
-
-    if 10. - ((r_pen + d_pen) * 0.9) < score:
-        continue
 
     # same as above, but weighted for number of positions selected and tier of player
     r_weighted_pen = sum((i + 1 not in radiant[i].pos) * len(radiant[i].pos) * (5 - radiant[i].tier) for i in range(5))
@@ -86,17 +67,20 @@ def balance(player_list):
     """
     if len(player_list) != 10:
         print('Requires list of 10 Players')
-        return
+        return [], [], 0.
 
     radiant_best, dire_best = [], []
-    score = 0
+    score = 0.
 
     for perm in itt.permutations(player_list):
 
-        if basic_score(perm) < score:
+        radiant, dire = perm[:5], perm[5:]
+
+        if basicScore(perm) < score:
             continue
 
-        if score(perm) > score:
+        perm_score = fullScore(perm)
+        if perm_score > score:
             radiant_best = list(player.name for player in radiant)
             dire_best = list(player.name for player in dire)
             score = perm_score
